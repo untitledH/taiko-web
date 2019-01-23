@@ -150,12 +150,14 @@
 					this.touchPauseBtn.style.display = "none"
 				}
 			}
+			pageEvents.add(this.canvas, "mousedown", this.onmousedown.bind(this));
 		}
 		if(this.multiplayer){
 			this.gameDiv.classList.add("multiplayer")
 		}else{
-			pageEvents.add(this.canvas, "mousedown", this.onmousedown.bind(this))
+			// pageEvents.add(this.canvas, "mousedown", this.onmousedown.bind(this));
 		}
+		pageEvents.add(this.canvas, "contextmenu", function(event) { event.preventDefault(); });
 	}
 	run(){
 		if(this.multiplayer !== 2){
@@ -688,7 +690,7 @@
 		}
 		
 		if(this.multiplayer !== 2){
-			this.mouseIdle()
+			// this.mouseIdle() // Commented out to allow mouse control
 			this.drawTouch()
 		}
 		
@@ -1815,7 +1817,17 @@
 			if(moveTo !== null){
 				this.pauseConfirm(moveTo)
 			}
-		}
+		}else{
+ 			var isRightMB = false
+ 			if ("which" in event)  // Gecko (Firefox), WebKit (Safari/Chrome) & Opera
+ 				isRightMB = event.which == 3;
+			else if ("button" in event)  // IE, Opera
+				isRightMB = event.button == 2;
+			if (isRightMB)
+				this.touchNote("ka_l");
+			else
+				this.touchNote("don_l");
+                }
 	}
 	onmousemove(event){
 		this.lastMousemove = this.getMS()
@@ -1902,9 +1914,10 @@
 				delete this.touchFullBtn
 				delete this.touchPauseBtn
 			}
+			pageEvents.remove(this.canvas, "mousedown")
 		}
 		if(!this.multiplayer){
-			pageEvents.remove(this.canvas, "mousedown")
+			// pageEvents.remove(this.canvas, "mousedown")
 			this.songBg.parentNode.removeChild(this.songBg)
 			this.songStage.parentNode.removeChild(this.songStage)
 			this.donBg.parentNode.removeChild(this.donBg)
@@ -1912,6 +1925,7 @@
 			delete this.songBg
 			delete this.songStage
 		}
+		pageEvents.remove(this.canvas, "contextmenu")
 		pageEvents.mouseRemove(this)
 
 		delete this.pauseMenu
