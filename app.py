@@ -1,11 +1,10 @@
-#!/usr/bin/env python2
-
-from __future__ import division
+#!/usr/bin/env pypy3
 
 import json
 import sqlite3
 import re
 import os
+import urllib.parse
 from flask import Flask, g, jsonify, render_template, request, abort, redirect
 from flask_caching import Cache
 from ffmpy import FFmpeg
@@ -55,6 +54,77 @@ def get_config():
     return config
 
 
+def parse_osu(osu):
+    osu_lines = open(osu, 'rb').read().decode('shift-jis','ignore').replace('\x00', '').split('\n')
+    sections = {}
+    current_section = (None, [])
+
+    for line in osu_lines:
+        line = line.strip()
+        secm = re.match('^\[(\w+)\]$', line)
+        if secm:
+            if current_section:
+                sections[current_section[0]] = current_section[1]
+            current_section = (secm.group(1), [])
+        else:
+            if current_section:
+                current_section[1].append(line)
+            else:
+                current_section = ('Default', [line])
+    
+    if current_section:
+        sections[current_section[0]] = current_section[1]
+
+    return sections
+
+
+def get_osu_key(osu, section, key, default=None):
+    sec = osu[section]
+    for line in sec:
+        ok = line.split(':', 1)[0].strip()
+        ov = line.split(':', 1)[1].strip()
+
+        if ok.lower() == key.lower():
+            return ov
+
+    return default
+
+
+def get_preview(song_id, song_type):
+    preview = 0
+
+    if song_type == "tja":
+        if os.path.isfile('public/songs/%s/main.tja' % song_id):
+            preview = get_tja_preview('public/songs/%s/main.tja' % song_id)
+    else:
+        osus = [osu for osu in os.listdir('public/songs/%s' % song_id) if osu in ['easy.osu', 'normal.osu', 'hard.osu', 'oni.osu']]
+        if osus:
+            osud = parse_osu('public/songs/%s/%s' % (song_id, osus[0]))
+            preview = int(get_osu_key(osud, 'General', 'PreviewTime', 0))
+
+    return preview
+
+
+def get_tja_preview(tja):
+    tja_lines = open(tja, 'rb').read().decode('shift-jis','ignore').replace('\x00', '').split('\n')
+    
+    for line in tja_lines:
+        line = line.strip()
+        if ':' in line:
+            name, value = line.split(':', 1)
+            if name.lower() == 'demostart':
+                value = value.strip()
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
+                else:
+                    return int(value * 1000)
+        elif line.lower() == '#start':
+            break
+    return 0
+
+
 def get_version():
     version = {'commit': None, 'commit_short': '', 'version': None, 'url': DEFAULT_URL}
     if os.path.isfile('version.json'):
@@ -97,11 +167,11 @@ def route_api_preview():
         abort(400)
 
     song_type = song_row[0][12]
-    prev_path = make_preview(song_id, song_type, song_row[0][15])
+    prev_path = make_preview(song_id, song_type)
     if not prev_path:
-        return redirect(get_config()['songs_baseurl'] + '%s/main.mp3' % song_id)
+        return redirect(urllib.parse.urljoin(request.host_url, '/songs/%s/main.mp3' % song_id))
 
-    return redirect(get_config()['songs_baseurl'] + '%s/preview.mp3' % song_id)
+    return redirect(urllib.parse.urljoin(request.host_url, '/songs/%s/preview.mp3' % song_id))
 
 
 @app.route('/api/songs')
@@ -123,7 +193,7 @@ def route_api_songs():
     for song in songs:
         song_id = song[0]
         song_type = song[12]
-        preview = song[15]
+        preview = get_preview(song_id, song_type)
         
         category_out = categories[song[11]] if song[11] in categories else ""
         song_skin_out = song_skins[song[14]] if song[14] in song_skins else None
@@ -155,11 +225,12 @@ def route_api_config():
     return jsonify(config)
 
 
-def make_preview(song_id, song_type, preview):
+def make_preview(song_id, song_type):
     song_path = 'public/songs/%s/main.mp3' % song_id
     prev_path = 'public/songs/%s/preview.mp3' % song_id
 
     if os.path.isfile(song_path) and not os.path.isfile(prev_path):
+        preview = get_preview(song_id, song_type) / 1000 
         if not preview or preview <= 0:
             print('Skipping #%s due to no preview' % song_id)
             return False
