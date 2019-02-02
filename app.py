@@ -37,7 +37,8 @@ def query_db(query, args=(), one=False):
 def get_config():
     if os.path.isfile('config.json'):
         try:
-            config = json.load(open('config.json', 'r'))
+            with open('config.json', 'r') as f:
+                config = json.load(f)
         except ValueError:
             print('WARNING: Invalid config.json, using default values')
             config = {}
@@ -55,7 +56,8 @@ def get_config():
 
 
 def parse_osu(osu):
-    osu_lines = open(osu, 'rb').read().decode('shift-jis','ignore').replace('\x00', '').split('\n')
+    with open(osu,'rb') as f:
+        osu_lines = f.read().decode('shift-jis','ignore').replace('\x00', '').split('\n')
     sections = {}
     current_section = (None, [])
 
@@ -106,7 +108,8 @@ def get_preview(song_id, song_type):
 
 
 def get_tja_preview(tja):
-    tja_lines = open(tja, 'rb').read().decode('shift-jis','ignore').replace('\x00', '').split('\n')
+    with open(tja, 'rb') as f:
+        tja_lines = f.read().decode('shift-jis','ignore').replace('\x00', '').split('\n')
     
     for line in tja_lines:
         line = line.strip()
@@ -129,7 +132,8 @@ def get_version():
     version = {'commit': None, 'commit_short': '', 'version': None, 'url': DEFAULT_URL}
     if os.path.isfile('version.json'):
         try:
-            ver = json.load(open('version.json', 'r'))
+            with open('version.json', 'r') as f:
+                ver = json.load(f)
         except ValueError:
             print('Invalid version.json file')
             return version
