@@ -216,7 +216,7 @@ def route_api_songs():
             'type': song_type,
             'offset': song[13],
             'song_skin': song_skin_out,
-            'volume': song[16]
+            'volume': 1.0 # song[16]
         })
 
     return jsonify(songs_out)
